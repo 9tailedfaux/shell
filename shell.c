@@ -1,13 +1,18 @@
 #include <stdio.h>
 #include <string.h>
 
-int prompt();
+int prompt(char* prompt, char* buffer, size_t size);
+void parseArgs(int argc, char** argv);
+
+char* promptText = "308sh> ";
 
 int main(int argc, char** argv) {
-	char* defprompt = "308sh> ";
+
+	if (argc >= 2) parseArgs(argc, argv);
+
 	while (1) {
 		char in[100];
-		prompt(defprompt, in, sizeof(in));
+		prompt(promptText, in, sizeof(in));
 	}
 }
 
@@ -33,4 +38,18 @@ int prompt(char* prompt, char* buffer, size_t size){
 	
 	buffer[strlen(buffer) - 1] = '\0';
 	return 0;
+}
+
+void parseArgs(int argc, char** argv) {
+	int i = 0;
+	for (i = 0; i < argc; i++) {
+		char* arg = argv[i];
+		if (arg[0] == '-') {
+			switch (arg[1]) {
+				case 'p': {
+					promptText = argv[++i];
+				}
+			}
+		}
+	}
 }
