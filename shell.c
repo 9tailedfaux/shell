@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
 	char* defprompt = "308sh> ";
 	while (1) {
 		char in[100];
-		prompt(defprompt, in, strlen(in));
+		prompt(defprompt, in, sizeof(in));
 	}
 }
 
