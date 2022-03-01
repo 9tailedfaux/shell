@@ -10,8 +10,9 @@
 int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
 void parseCmd(char** cmd);
-char **str_split(char* a_str, const char a_delim);
-char *trimwhitespace(char *str);
+char** str_split(char* a_str, const char a_delim);
+char* trimwhitespace(char *str);
+int executeOther(char* cmd, char** args);
 
 char* promptText = "308sh> ";
 
@@ -54,7 +55,10 @@ void parseCmd(char** cmds) {
 	char* cmd = trimwhitespace(cmds[0]);
 
 	//exit
-	if (strcmp(cmd, "exit") == 0) exit(0);
+	if (strcmp(cmd, "exit") == 0) {
+		printf("Exiting...\n");
+		exit(0);
+	} 
 
 	//pid
 	if (strcmp(cmd, "pid") == 0) {
@@ -88,8 +92,28 @@ void parseCmd(char** cmds) {
 		return;
 	}
 
-	printf ("Command not found: %s\n", cmd);
-	fflush (stdout);
+
+
+	//other command
+	if (executeOther(cmd, cmds) != 0) {
+		printf ("Command not found: %s\n", cmd);
+		fflush (stdout);
+	}
+}
+
+int executeOther(char* cmd, char** args) {
+	int status = 1;
+	int pid = fork();
+	if (pid == 0) {
+		int pid = getpid();
+		printf ("Child pid: %d\n", pid);
+		exit(execvp(cmd, args));
+	}
+	else {
+		waitpid(pid, &status, 0);
+		printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
+	}
+	return status;
 }
 
 void parseArgs(int argc, char** argv) {
