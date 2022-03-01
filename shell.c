@@ -84,9 +84,12 @@ void parseCmd(char** cmds) {
 	//cd
 	if (strcmp(cmd, "cd") == 0) {
 		if (cmds[1] == NULL) chdir(getenv("HOME"));
-		else if (chdir(cmds[1]) != 0) perror("Command failed");
+		else if (chdir(cmds[1]) != 0) perror("cd failed");
 		return;
 	}
+
+	printf ("Command not found: %s\n", cmd);
+	fflush (stdout);
 }
 
 void parseArgs(int argc, char** argv) {
