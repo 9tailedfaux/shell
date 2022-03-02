@@ -4,15 +4,22 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #define PATH_MAX 4096
 
 int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
-void parseCmd(char** cmd);
-char** str_split(char* a_str, const char a_delim);
+void parseCmd(char** cmd, int len);
+char** splitStringProtected(char* string, const char delimIn, char protecc);
 char* trimwhitespace(char *str);
 int executeOther(char* cmd, char** args);
+void printStringArray(char* name, char* array[]);
+char* stripQuotes(char* string);
+char** stripQuotesBatch(char** strings, int len);
+void freePointerArray(void** array, int len);
+bool isQuoted(char* string);
+void substring(char* string, int first, int last);
 
 char* promptText = "308sh> ";
 
@@ -23,7 +30,7 @@ int main(int argc, char** argv) {
 	while (1) {
 		char in[100];
 		prompt(promptText, in, sizeof(in));
-		parseCmd(str_split(in, ' '));
+		parseCmd(splitStringProtected(in, ' ', '"'), argc);
 	}
 }
 
@@ -51,7 +58,10 @@ int prompt(char* prompt, char* buffer, size_t size){
 	return 0;
 }
 
-void parseCmd(char** cmds) {
+void parseCmd(char** cmds, int len) {
+	printStringArray("cmds before", cmds);
+	cmds = stripQuotesBatch(cmds, len);
+	printStringArray("cmds after", cmds);
 	char* cmd = trimwhitespace(cmds[0]);
 	
 
@@ -94,13 +104,39 @@ void parseCmd(char** cmds) {
 	}
 
 	//other command background
-	if (strcmp(cmds[]))
+	//if (strcmp(cmds[]))
 
 	//other command
 	if (executeOther(cmd, cmds) != 0) {
 		printf ("Command not found: %s\n", cmd);
 		fflush (stdout);
 	}
+	else {
+
+	}
+
+	freePointerArray((void**) cmds, len);
+}
+
+void freePointerArray(void** array, int len) {
+	int i;
+	for (i = 0; i < len; i++) {
+		free(array[i]);
+	}
+}
+
+//note string array must be null terminated
+void printStringArray(char* name, char* array[]) {
+	int i = 0;
+
+	printf("%s: {", name);
+
+	while(array[i] != NULL) {
+		printf("%s, ", array[i++]);
+	}
+
+	printf("}\n");
+	fflush(stdout);
 }
 
 int executeOther(char* cmd, char** args) {
@@ -116,6 +152,32 @@ int executeOther(char* cmd, char** args) {
 		printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
 	}
 	return status;
+}
+
+char** stripQuotesBatch(char** strings, int len) {
+	int i;
+	for (i = 0; i < len; i++) {
+		strings[i] = stripQuotes(strings[i]);
+	}
+	return strings;
+}
+
+char* stripQuotes(char* string) {
+	int len = strlen(string);
+	if (!isQuoted(string)) return string;
+	char* returnBoi = (char*) malloc(sizeof(char) * (len - 2));
+	substring(returnBoi, 1, len - 2);
+	return returnBoi;
+}
+
+//both are inclusive
+void substring(char* string, int first, int last) {
+	strncpy(string, &string[first], last - first + 1);
+}
+
+bool isQuoted(char* string) {
+	int len = strlen(string);
+	return (string[0] == '"') && (string[len - 1] == '"');
 }
 
 void parseArgs(int argc, char** argv) {
@@ -153,44 +215,48 @@ char* trimwhitespace(char* str) {
 	return str;
 }
 
-char **str_split(char* a_str, const char a_delim) {
-	char **result = 0;
-	size_t count = 0;
-	char *tmp = a_str;
-	char *last_comma = 0;
-	char delim[2];
-	delim[0] = a_delim;
-	delim[1] = 0;
+char **splitStringProtected(char* string, const char delimIn, char protecc) {
 
-	while (*tmp)
-	{
-		if (a_delim == *tmp)
-		{
-			count++;
-			last_comma = tmp;
+	char **result = 0;
+	int count = 0;
+	char *temp = string;
+	char *last = 0;
+	bool protected = false;
+
+	while (*temp) {
+		if (delimIn == *temp) {
+			if (*temp == protecc) protected = !protected;
+			if (!protected) count++;
+			last = temp;
 		}
-		tmp++;
+		temp++;
 	}
 
-	count += last_comma < (a_str + strlen(a_str) - 1);
+	protected = false;
+
+	count += last < (string + strlen(string) - 1);
 
 	count++;
 
 	result = malloc(sizeof(char* ) * count);
 
-	if (result)
-	{
-		size_t idx = 0;
-		char *token = strtok(a_str, delim);
-
-		while (token)
-		{
-			//assert(idx < count);
-			*(result + idx++) = strdup(token);
-			token = strtok(0, delim);
+	if (result) {
+		int i = 0;
+		int x = 0;
+		temp = string;
+		while (x < count - 1) {
+			//printf("%s, x=%d\n", temp, x);
+			if (temp[i] == protecc) protected = !protected;
+			if (temp[i] == delimIn && !protected) {
+				result[x] = temp;
+				//issue is with the following line
+				substring(result[x], 0, i);
+				x++;
+				temp += i;
+				i = -1;
+			}
+			i++;
 		}
-		//assert(idx == count - 1);
-		*(result + idx) = 0;
 	}
 
 	return result;
