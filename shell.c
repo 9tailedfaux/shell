@@ -53,6 +53,7 @@ int prompt(char* prompt, char* buffer, size_t size){
 
 void parseCmd(char** cmds) {
 	char* cmd = trimwhitespace(cmds[0]);
+	
 
 	//exit
 	if (strcmp(cmd, "exit") == 0) {
@@ -92,7 +93,8 @@ void parseCmd(char** cmds) {
 		return;
 	}
 
-
+	//other command background
+	if (strcmp(cmds[]))
 
 	//other command
 	if (executeOther(cmd, cmds) != 0) {
