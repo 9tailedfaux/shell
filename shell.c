@@ -62,9 +62,8 @@ int prompt(char* prompt, char* buffer, size_t size){
 
 void parseCmd(char** cmds, int len) {
 	stripQuotesBatch(cmds, len);
+	printf("len: %d\n", len);
 	char* cmd = trimwhitespace(cmds[0]);
-	printf("cmd: %s\n", cmd);
-	
 
 	//exit
 	if (strcmp(cmd, "exit") == 0) {
@@ -105,7 +104,10 @@ void parseCmd(char** cmds, int len) {
 	}
 
 	//other command background
-	//if (strcmp(cmds[]))
+	if ((strcmp(cmds[len - 1], "&") == 0) && len > 1) {
+		printf("background requested!\n");
+		return;
+	}
 
 	//other command
 	if (executeOther(cmd, cmds) != 0) {
@@ -141,7 +143,6 @@ void printStringArray(char* name, char* array[]) {
 }
 
 int executeOther(char* cmd, char** args) {
-	printf("cmd: %s, arg1: %s, arg2: %s\n", cmd, args[0], args[1]);
 	int status = 1;
 	int pid = fork();
 	if (pid == 0) {
@@ -171,7 +172,6 @@ void stripQuotes(char* string) {
 
 //both are inclusive
 void substring(char* string, int first, int last) {
-	printf("string: %s, first: %d, last: %d\n", string, first, last);
 	string += first;
 	string[last + 1] = '\0';
 }
