@@ -11,12 +11,12 @@
 int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
 void parseCmd(char** cmd, int len);
-char** splitStringProtected(char* string, const char delimIn, char protecc);
+size_t splitStringProtected(char* buffer, char* argv[], size_t argv_size);
 char* trimwhitespace(char *str);
 int executeOther(char* cmd, char** args);
 void printStringArray(char* name, char* array[]);
-char* stripQuotes(char* string);
-char** stripQuotesBatch(char** strings, int len);
+void stripQuotes(char* string);
+void stripQuotesBatch(char** strings, int len);
 void freePointerArray(void** array, int len);
 bool isQuoted(char* string);
 void substring(char* string, int first, int last);
@@ -30,7 +30,9 @@ int main(int argc, char** argv) {
 	while (1) {
 		char in[100];
 		prompt(promptText, in, sizeof(in));
-		parseCmd(splitStringProtected(in, ' ', '"'), argc);
+		char* parsed[20];
+		int numParsed = splitStringProtected(in, parsed, 20);
+		parseCmd(parsed, numParsed);
 	}
 }
 
@@ -59,10 +61,9 @@ int prompt(char* prompt, char* buffer, size_t size){
 }
 
 void parseCmd(char** cmds, int len) {
-	printStringArray("cmds before", cmds);
-	cmds = stripQuotesBatch(cmds, len);
-	printStringArray("cmds after", cmds);
+	stripQuotesBatch(cmds, len);
 	char* cmd = trimwhitespace(cmds[0]);
+	printf("cmd: %s\n", cmd);
 	
 
 	//exit
@@ -115,7 +116,7 @@ void parseCmd(char** cmds, int len) {
 
 	}
 
-	freePointerArray((void**) cmds, len);
+	//freePointerArray((void**) cmds, len);
 }
 
 void freePointerArray(void** array, int len) {
@@ -140,6 +141,7 @@ void printStringArray(char* name, char* array[]) {
 }
 
 int executeOther(char* cmd, char** args) {
+	printf("cmd: %s, arg1: %s, arg2: %s\n", cmd, args[0], args[1]);
 	int status = 1;
 	int pid = fork();
 	if (pid == 0) {
@@ -154,25 +156,24 @@ int executeOther(char* cmd, char** args) {
 	return status;
 }
 
-char** stripQuotesBatch(char** strings, int len) {
+void stripQuotesBatch(char** strings, int len) {
 	int i;
 	for (i = 0; i < len; i++) {
-		strings[i] = stripQuotes(strings[i]);
+		stripQuotes(strings[i]);
 	}
-	return strings;
 }
 
-char* stripQuotes(char* string) {
+void stripQuotes(char* string) {
 	int len = strlen(string);
-	if (!isQuoted(string)) return string;
-	char* returnBoi = (char*) malloc(sizeof(char) * (len - 2));
-	substring(returnBoi, 1, len - 2);
-	return returnBoi;
+	if (!isQuoted(string)) return;
+	substring(string, 1, len - 2);
 }
 
 //both are inclusive
 void substring(char* string, int first, int last) {
-	strncpy(string, &string[first], last - first + 1);
+	printf("string: %s, first: %d, last: %d\n", string, first, last);
+	string += first;
+	string[last + 1] = '\0';
 }
 
 bool isQuoted(char* string) {
@@ -215,49 +216,58 @@ char* trimwhitespace(char* str) {
 	return str;
 }
 
-char **splitStringProtected(char* string, const char delimIn, char protecc) {
+/*
+ * this code is originally from https://stackoverflow.com/questions/9659697/parse-string-into-array-based-on-spaces-or-double-quotes-strings
+ * then modified to fit my purposes
+ */
+size_t splitStringProtected(char* buffer, char* argv[], size_t argv_size) {
+    char* p;
+	char* start_of_word;
+    int c;
+    enum states { BASE, IN_WORD, IN_STRING } state = BASE;
+    size_t argc = 0;
 
-	char **result = 0;
-	int count = 0;
-	char *temp = string;
-	char *last = 0;
-	bool protected = false;
+	argv_size--;
 
-	while (*temp) {
-		if (delimIn == *temp) {
-			if (*temp == protecc) protected = !protected;
-			if (!protected) count++;
-			last = temp;
-		}
-		temp++;
-	}
+    for (p = buffer; argc < argv_size && *p != '\0'; p++) {
+        c = (unsigned char) *p;
+        switch (state) {
+        case BASE:
+            if (isspace(c)) {
+                continue;
+            }
 
-	protected = false;
+            if (c == '"') {
+                state = IN_STRING;
+                start_of_word = p + 1; 
+                continue;
+            }
+            state = IN_WORD;
+            start_of_word = p;
+            continue;
 
-	count += last < (string + strlen(string) - 1);
+        case IN_STRING:
+            if (c == '"') {
+                *p = 0;
+                argv[argc++] = start_of_word;
+                state = BASE;
+            }
+            continue;
 
-	count++;
+        case IN_WORD:
+            if (isspace(c)) {
+                *p = 0;
+                argv[argc++] = start_of_word;
+                state = BASE;
+            }
+            continue;
+        }
+    }
 
-	result = malloc(sizeof(char* ) * count);
+    if (state != BASE && argc < argv_size)
+        argv[argc++] = start_of_word;
 
-	if (result) {
-		int i = 0;
-		int x = 0;
-		temp = string;
-		while (x < count - 1) {
-			//printf("%s, x=%d\n", temp, x);
-			if (temp[i] == protecc) protected = !protected;
-			if (temp[i] == delimIn && !protected) {
-				result[x] = temp;
-				//issue is with the following line
-				substring(result[x], 0, i);
-				x++;
-				temp += i;
-				i = -1;
-			}
-			i++;
-		}
-	}
+	argv[argc] = NULL;
 
-	return result;
+    return argc;
 }
