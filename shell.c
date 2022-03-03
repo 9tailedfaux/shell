@@ -40,6 +40,7 @@ void removeBGProcess(BackgroundProcess* process, ProcessList* list);
 BackgroundProcess* findBGProcess(pid_t pid, ProcessList* list);
 BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list);
 int executeOtherBG(char* cmd, char** args);
+void printExit(char* name, pid_t pid, int code);
 
 char* promptText = "308sh> ";
 ProcessList processList;
@@ -153,8 +154,6 @@ void parseCmd(char** cmds, int len) {
 	else {
 
 	}
-
-	//freePointerArray((void**) cmds, len);
 }
 
 int checkBackground() {
@@ -164,8 +163,8 @@ int checkBackground() {
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 		if (WIFEXITED(status)) exited++;
 		if (exited) {
-			printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
 			BackgroundProcess* process = findBGProcess(pid, &processList);
+			printExit(process->name, pid, WEXITSTATUS(status));
 			if (process) removeBGProcess(findBGProcess(pid, &processList), &processList);
 		}
 	}
@@ -210,11 +209,17 @@ int executeOtherBG(char* cmd, char** args) {
 	return pid;
 }
 
+void printExit(char* name, pid_t pid, int code) {
+	printf("%s (%d) exited with code %d\n", name, pid, code);
+	fflush(stdout);
+}
+
 int executeOther(char* cmd, char** args) {
 	int pid = fork();
 	if (pid == 0) {
 		int pid = getpid();
-		printf ("Child pid: %d\n", pid);
+		printf ("Executing %s (%d)", cmd, pid);
+		fflush(stdout);
 		exit(execvp(cmd, args));
 	}
 	return pid;
@@ -225,7 +230,7 @@ int executeOtherFG(char* cmd, char** args) {
 	int pid = executeOther(cmd, args);
 	if (pid != 0) {
 		waitpid(pid, &status, 0);
-		printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
+		printExit(cmd, pid, WEXITSTATUS(status));
 	}
 	return status;
 }
