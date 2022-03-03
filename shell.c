@@ -8,20 +8,41 @@
 
 #define PATH_MAX 4096
 
+typedef struct _BackgroundProcess {
+	struct _BackgroundProcess* prev;
+	struct _BackgroundProcess* next;
+	char* name;
+	int pid;
+} BackgroundProcess;
+
+typedef struct _ProcessList {
+	BackgroundProcess* head;
+	BackgroundProcess* tail;
+	int count;
+} ProcessList;
+
 int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
 void parseCmd(char** cmd, int len);
 size_t splitStringProtected(char* buffer, char* argv[], size_t argv_size);
 char* trimwhitespace(char *str);
-int executeOther(char* cmd, char** args);
+int executeOtherFG(char* cmd, char** args);
 void printStringArray(char* name, char* array[]);
 void stripQuotes(char* string);
 void stripQuotesBatch(char** strings, int len);
 void freePointerArray(void** array, int len);
 bool isQuoted(char* string);
 void substring(char* string, int first, int last);
+int checkBackground();
+int executeOther(char* cmd, char** args);
+void printProcessList(ProcessList* list);
+void removeBGProcess(BackgroundProcess* process, ProcessList* list);
+BackgroundProcess* findBGProcess(pid_t pid, ProcessList* list);
+BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list);
+int executeOtherBG(char* cmd, char** args);
 
 char* promptText = "308sh> ";
+ProcessList processList;
 
 int main(int argc, char** argv) {
 	
@@ -62,8 +83,9 @@ int prompt(char* prompt, char* buffer, size_t size){
 
 void parseCmd(char** cmds, int len) {
 	stripQuotesBatch(cmds, len);
-	printf("len: %d\n", len);
 	char* cmd = trimwhitespace(cmds[0]);
+
+	checkBackground();
 
 	//exit
 	if (strcmp(cmd, "exit") == 0) {
@@ -103,14 +125,28 @@ void parseCmd(char** cmds, int len) {
 		return;
 	}
 
-	//other command background
-	if ((strcmp(cmds[len - 1], "&") == 0) && len > 1) {
-		printf("background requested!\n");
+	//jobs
+	if (strcmp(cmd, "jobs") == 0) {
+		printProcessList(&processList);
 		return;
 	}
 
-	//other command
-	if (executeOther(cmd, cmds) != 0) {
+	//other command background
+	if ((strcmp(cmds[len - 1], "&") == 0) && len > 1) {
+		cmds[len - 1] = NULL;
+		executeOtherBG(cmd, cmds);
+		return;
+	}
+	int cmdLen = strlen(cmd);
+	if (cmd[cmdLen - 1] == '&') {
+		cmd[cmdLen - 1] = '\0';
+		cmds[1] = NULL;
+		executeOtherBG(cmd, cmds);
+		return;
+	}
+
+	//other command foreground
+	if (executeOtherFG(cmd, cmds) != 0) {
 		printf ("Command not found: %s\n", cmd);
 		fflush (stdout);
 	}
@@ -119,6 +155,21 @@ void parseCmd(char** cmds, int len) {
 	}
 
 	//freePointerArray((void**) cmds, len);
+}
+
+int checkBackground() {
+	int status;
+	int pid;
+	int exited;
+	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+		if (WIFEXITED(status)) exited++;
+		if (exited) {
+			printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
+			BackgroundProcess* process = findBGProcess(pid, &processList);
+			if (process) removeBGProcess(findBGProcess(pid, &processList), &processList);
+		}
+	}
+	return exited;
 }
 
 void freePointerArray(void** array, int len) {
@@ -142,15 +193,37 @@ void printStringArray(char* name, char* array[]) {
 	fflush(stdout);
 }
 
+void printProcessList(ProcessList* list) {
+	printf("Number of background processes: %d\n", list->count);
+
+	BackgroundProcess* current = list->head;
+	while (current != NULL) {
+		printf("Name: %s, pid: %d\n", current->name, current->pid);
+		fflush(stdout);
+		current = current->next;
+	}
+}
+
+int executeOtherBG(char* cmd, char** args) {
+	int pid = executeOther(cmd, args);
+	addBGProcess(cmd, pid, &processList);
+	return pid;
+}
+
 int executeOther(char* cmd, char** args) {
-	int status = 1;
 	int pid = fork();
 	if (pid == 0) {
 		int pid = getpid();
 		printf ("Child pid: %d\n", pid);
 		exit(execvp(cmd, args));
 	}
-	else {
+	return pid;
+}
+
+int executeOtherFG(char* cmd, char** args) {
+	int status = 1;
+	int pid = executeOther(cmd, args);
+	if (pid != 0) {
 		waitpid(pid, &status, 0);
 		printf("Child %d exited with status: %d\n", pid, WEXITSTATUS(status));
 	}
@@ -214,6 +287,46 @@ char* trimwhitespace(char* str) {
 	end[1] = '\0';
 
 	return str;
+}
+
+/**
+ * @param name 
+ * @param pid 
+ * @param tail set to null if this is the first background process
+ */
+BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list) {
+	BackgroundProcess* tail = list->tail;
+	BackgroundProcess* new = malloc(sizeof(BackgroundProcess));
+	new->name = name;
+	new->pid = pid;
+	new->prev = tail;
+	new->next = NULL;
+	if (tail) tail->next = new;
+	else {
+		list->head = new;
+	}
+	list->tail = new;
+	list->count++;
+	return new;
+}
+
+//returns NULL if not found
+BackgroundProcess* findBGProcess(pid_t pid, ProcessList* list) {
+	BackgroundProcess* head = list->head;
+	while (head->pid != pid) {
+		if (head->next == NULL) return NULL; 
+		head = head->next;
+	}
+	return head;
+}
+
+void removeBGProcess(BackgroundProcess* process, ProcessList* list) {
+	if (process == list->tail) list->tail = process->prev;
+	if (process == list->head) list->head = process->next;
+	if (process->prev) process->prev->next = process->next;
+	if (process->next) process->next->prev = process->prev;
+	free(process);
+	list->count--;
 }
 
 /*
