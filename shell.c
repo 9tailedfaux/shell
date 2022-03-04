@@ -8,6 +8,12 @@
 
 #define PATH_MAX 4096
 
+/**
+ * @brief this struct represents a background process.
+ * It is to be added when a background process is executed and removed when the process is reaped.
+ * It follows a fairly standard doubly linked list implementation.
+ * 
+ */
 typedef struct _BackgroundProcess {
 	struct _BackgroundProcess* prev;
 	struct _BackgroundProcess* next;
@@ -15,12 +21,18 @@ typedef struct _BackgroundProcess {
 	int pid;
 } BackgroundProcess;
 
+/**
+ * @brief The manager for the background process list.
+ * This struct maintains the head and tail of the list, as well as how many nodes it contains.
+ * 
+ */
 typedef struct _ProcessList {
 	BackgroundProcess* head;
 	BackgroundProcess* tail;
 	int count;
 } ProcessList;
 
+//function declarations. definitions come later :)
 int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
 void parseCmd(char** cmd, int len);
@@ -42,12 +54,12 @@ BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list);
 int executeOtherBG(char* cmd, char** args);
 void printExit(char* name, pid_t pid, int code);
 
-char* promptText = "308sh> ";
-ProcessList processList;
+char* promptText = "308sh> "; //this stores the prompt text. it has a default value but may be changed
+ProcessList processList; 
 
 int main(int argc, char** argv) {
 	
-	if (argc >= 2) parseArgs(argc, argv);
+	if (argc >= 2) parseArgs(argc, argv); //if we only have one argument then it's just the program's name so not worth parsing
 
 	while (1) {
 		char in[100];
