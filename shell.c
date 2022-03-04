@@ -25,7 +25,7 @@ int prompt(char* prompt, char* buffer, size_t size);
 void parseArgs(int argc, char** argv);
 void parseCmd(char** cmd, int len);
 size_t splitStringProtected(char* buffer, char* argv[], size_t argv_size);
-char* trimwhitespace(char *str);
+char* trimwhitespace(char *string);
 int executeOtherFG(char* cmd, char** args);
 void printStringArray(char* name, char* array[]);
 void stripQuotes(char* string);
@@ -270,32 +270,27 @@ void parseArgs(int argc, char** argv) {
 	}
 }
 
-char* trimwhitespace(char* str) {
+char* trimwhitespace(char* string) {
 	char* end;
 
 	// Trim leading space
-	while (isspace((unsigned char)*str))
-		str++;
+	while (isspace((unsigned char)*string)) //pushes string's pointer forward until it finds something that isnt a space
+		string++;
 
-	if (*str == 0) // All spaces?
-		return str;
+	if (*string == 0) // if we encounter a null character then string is literally just spaces so just return is
+		return string;
 
 	// Trim trailing space
-	end = str + strlen(str) - 1;
-	while (end > str && isspace((unsigned char)*end))
+	end = string + strlen(string) - 1;
+	while (end > string && isspace((unsigned char)*end)) //same as before but backwards this time. move the endpoint back until we find a non-space character
 		end--;
 
 	// Write new null terminator character
 	end[1] = '\0';
 
-	return str;
+	return string;
 }
 
-/**
- * @param name 
- * @param pid 
- * @param tail set to null if this is the first background process
- */
 BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list) {
 	BackgroundProcess* tail = list->tail;
 	BackgroundProcess* new = malloc(sizeof(BackgroundProcess));
@@ -333,10 +328,6 @@ void removeBGProcess(BackgroundProcess* process, ProcessList* list) {
 	list->count--;
 }
 
-/*
- * this code is originally from https://stackoverflow.com/questions/9659697/parse-string-into-array-based-on-spaces-or-double-quotes-strings
- * then modified to fit my purposes
- */
 size_t splitStringProtected(char* buffer, char* argv[], size_t argv_size) {
     char* p;
 	char* start_of_word;
