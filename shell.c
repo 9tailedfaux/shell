@@ -52,6 +52,8 @@ int main(int argc, char** argv) {
 	while (1) {
 		char in[100];
 		prompt(promptText, in, sizeof(in));
+		checkBackground();
+		if (*(trimwhitespace(in) + 1) == '\0') continue;
 		char* parsed[20];
 		int numParsed = splitStringProtected(in, parsed, 20);
 		parseCmd(parsed, numParsed);
@@ -85,8 +87,6 @@ int prompt(char* prompt, char* buffer, size_t size){
 void parseCmd(char** cmds, int len) {
 	stripQuotesBatch(cmds, len);
 	char* cmd = trimwhitespace(cmds[0]);
-
-	checkBackground();
 
 	//exit
 	if (strcmp(cmd, "exit") == 0) {
@@ -147,12 +147,8 @@ void parseCmd(char** cmds, int len) {
 	}
 
 	//other command foreground
-	if (executeOtherFG(cmd, cmds) != 0) {
-		printf ("Command not found: %s\n", cmd);
-		fflush (stdout);
-	}
-	else {
-
+	if (executeOtherFG(cmd, cmds) < 0) {
+		perror("cannot execute");
 	}
 }
 
@@ -216,9 +212,10 @@ void printExit(char* name, pid_t pid, int code) {
 
 int executeOther(char* cmd, char** args) {
 	int pid = fork();
+	if (pid > 0) {
+		printf ("Executing %s (%d)\n", cmd, pid);
+	}
 	if (pid == 0) {
-		int pid = getpid();
-		printf ("Executing %s (%d)", cmd, pid);
 		fflush(stdout);
 		exit(execvp(cmd, args));
 	}
@@ -228,11 +225,11 @@ int executeOther(char* cmd, char** args) {
 int executeOtherFG(char* cmd, char** args) {
 	int status = 1;
 	int pid = executeOther(cmd, args);
-	if (pid != 0) {
+	if (pid > 0) {
 		waitpid(pid, &status, 0);
 		printExit(cmd, pid, WEXITSTATUS(status));
 	}
-	return status;
+	return pid;
 }
 
 void stripQuotesBatch(char** strings, int len) {
@@ -302,7 +299,8 @@ char* trimwhitespace(char* str) {
 BackgroundProcess* addBGProcess(char* name, int pid, ProcessList* list) {
 	BackgroundProcess* tail = list->tail;
 	BackgroundProcess* new = malloc(sizeof(BackgroundProcess));
-	new->name = name;
+	new->name = malloc((sizeof(char) * strlen(name)) + 1);
+	strcpy(new->name, name);
 	new->pid = pid;
 	new->prev = tail;
 	new->next = NULL;
@@ -330,6 +328,7 @@ void removeBGProcess(BackgroundProcess* process, ProcessList* list) {
 	if (process == list->head) list->head = process->next;
 	if (process->prev) process->prev->next = process->next;
 	if (process->next) process->next->prev = process->prev;
+	free(process->name);
 	free(process);
 	list->count--;
 }
